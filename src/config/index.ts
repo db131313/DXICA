@@ -1,5 +1,5 @@
-export const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY;
-export const GOOGLE_SEARCH_ENGINE_ID = import.meta.env.VITE_GOOGLE_SEARCH_ENGINE_ID;
+export const GOOGLE_API_KEY = "AIzaSyCrCZRwW37jisR4jAP3mgdQmb8HCGSLVDw";
+export const GOOGLE_SEARCH_ENGINE_ID = "615b8aae2d40343b8";
 
 export const SOCIAL_PLATFORMS = [
   { name: 'Instagram', icon: '/icons/instagram.svg', isSelected: false },

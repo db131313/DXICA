@@ -1,16 +1,67 @@
 import { useEffect, useState } from 'react';
 import type { SearchResult } from '../types';
 import { GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID } from '../config';
+import ControlsModal from './ControlsModal';
+import MasonryLayout from './MasonryLayout';
+import CoverflowLayout from './CoverflowLayout';
+import CardModal from './CardModal';
 
 interface ResultsPageProps {
   keywords: string;
   selectedPlatforms: Array<{ name: string; username?: string }>;
 }
 
+interface Settings {
+  layout: {
+    columnCount: number;
+    gridGap: number;
+  };
+  page: {
+    containerPadding: number;
+    backgroundImage?: string;
+  };
+  card: {
+    font: {
+      family: string;
+      size: number;
+    };
+    border: {
+      width: number;
+      color: string;
+    };
+    height: number;
+  };
+}
+
 export default function ResultsPage({ keywords, selectedPlatforms }: ResultsPageProps) {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showControls, setShowControls] = useState(false);
+  const [selectedLayout, setSelectedLayout] = useState<'basic' | 'masonry' | 'coverflow'>('basic');
+  const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
+  
+  const [settings, setSettings] = useState<Settings>({
+    layout: {
+      columnCount: 3,
+      gridGap: 16,
+    },
+    page: {
+      containerPadding: 24,
+      backgroundImage: undefined,
+    },
+    card: {
+      font: {
+        family: 'Inter',
+        size: 14,
+      },
+      border: {
+        width: 1,
+        color: 'rgba(255, 255, 255, 0.1)',
+      },
+      height: 300,
+    },
+  });
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -27,30 +78,60 @@ export default function ResultsPage({ keywords, selectedPlatforms }: ResultsPage
           .filter(Boolean)
           .join(' OR ')}`;
 
-        const response = await fetch(
-          `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}&searchType=image`
+        // First batch of results
+        const response1 = await fetch(
+          `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}&searchType=image&num=10`
         );
 
-        if (!response.ok) {
-          const errorData = await response.json();
+        // Second batch (start=11)
+        const response2 = await fetch(
+          `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}&searchType=image&num=10&start=11`
+        );
+
+        // Third batch (start=21)
+        const response3 = await fetch(
+          `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}&searchType=image&num=10&start=21`
+        );
+
+        // Fourth batch (start=31) - getting extra to ensure we have enough after filtering
+        const response4 = await fetch(
+          `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_API_KEY}&cx=${GOOGLE_SEARCH_ENGINE_ID}&q=${encodeURIComponent(query)}&searchType=image&num=10&start=31`
+        );
+
+        if (!response1.ok || !response2.ok || !response3.ok || !response4.ok) {
+          const errorData = await response1.json();
           throw new Error(errorData.error?.message || 'Failed to fetch search results');
         }
 
-        const data = await response.json();
+        const data1 = await response1.json();
+        const data2 = await response2.json();
+        const data3 = await response3.json();
+        const data4 = await response4.json();
         
-        if (!data.items || !Array.isArray(data.items)) {
+        // Combine all items
+        const allItems = [
+          ...(data1.items || []),
+          ...(data2.items || []),
+          ...(data3.items || []),
+          ...(data4.items || [])
+        ];
+
+        if (!allItems.length) {
           throw new Error('No results found');
         }
 
-        const formattedResults: SearchResult[] = data.items.map((item: any) => ({
-          title: item.title,
-          link: item.link,
-          description: item.snippet,
-          image: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.imageobject?.[0]?.url,
-          favicon: `https://www.google.com/s2/favicons?domain=${new URL(item.link).hostname}`,
-          source: new URL(item.link).hostname,
-          date: item.pagemap?.metatags?.[0]?.['article:published_time'],
-        }));
+        const formattedResults: SearchResult[] = allItems
+          .filter(item => item.link && item.link.match(/\.(jpg|jpeg|png|gif|webp)/i)) // Only keep items with valid image URLs
+          .map((item: any) => ({
+            title: item.title,
+            link: item.link,
+            description: item.snippet,
+            image: item.link,
+            favicon: `https://www.google.com/s2/favicons?domain=${new URL(item.link).hostname}`,
+            source: new URL(item.link).hostname,
+            date: item.pagemap?.metatags?.[0]?.['article:published_time'],
+          }))
+          .slice(0, 30); // Ensure we return exactly 30 results
 
         setResults(formattedResults);
       } catch (error) {
@@ -63,6 +144,10 @@ export default function ResultsPage({ keywords, selectedPlatforms }: ResultsPage
 
     fetchResults();
   }, [keywords, selectedPlatforms]);
+
+  const handleCardDelete = (index: number) => {
+    setResults(prev => prev.filter((_, i) => i !== index));
+  };
 
   if (loading) {
     return (
@@ -93,55 +178,157 @@ export default function ResultsPage({ keywords, selectedPlatforms }: ResultsPage
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6 [column-fill:_balance]">
-        {results.map((result, index) => (
-          <a
-            key={index}
-            href={result.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block mb-6 break-inside-avoid group"
+    <>
+      <div 
+        className="min-h-screen relative"
+        style={{
+          padding: `${settings.page.containerPadding}px`,
+          backgroundImage: settings.page.backgroundImage ? `url(${settings.page.backgroundImage})` : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundAttachment: 'fixed',
+        }}
+      >
+        {/* Controls Button */}
+        <div className="fixed top-4 right-4 z-50">
+          <div className="relative">
+            <button
+              onClick={() => setShowControls(!showControls)}
+              className="p-3 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-all border border-white/20"
+            >
+              <span className="material-icons">tune</span>
+            </button>
+
+            {showControls && (
+              <div className="absolute top-full right-0 mt-2 w-80">
+                <ControlsModal
+                  settings={settings}
+                  selectedLayout={selectedLayout}
+                  onLayoutChange={setSelectedLayout}
+                  onSettingsChange={setSettings}
+                  onClose={() => setShowControls(false)}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Results Grid */}
+        {selectedLayout === 'basic' && (
+          <div 
+            className="grid gap-6"
+            style={{
+              gridTemplateColumns: `repeat(${settings.layout.columnCount}, minmax(0, 1fr))`,
+              gap: `${settings.layout.gridGap}px`,
+            }}
           >
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl overflow-hidden hover:bg-white/10 transition-all duration-300 border border-white/10 hover:border-white/20">
-              {result.image && (
-                <div className="relative aspect-[4/3] overflow-hidden">
-                  <img
-                    src={result.image}
-                    alt={result.title}
-                    className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-300"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                </div>
-              )}
-              <div className="p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex items-center gap-2 flex-1">
+            {results.map((result, index) => (
+              <div
+                key={result.link}
+                className="group relative aspect-[4/3] rounded-xl overflow-hidden"
+              >
+                {/* Background Image */}
+                <img
+                  src={result.image}
+                  alt={result.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                
+                {/* Overlay Gradient */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+
+                {/* Content */}
+                <div className="absolute inset-0 p-4 flex flex-col">
+                  {/* Favicon and Actions */}
+                  <div className="flex items-center justify-between mb-auto">
                     <img
                       src={result.favicon}
                       alt={result.source}
-                      className="w-5 h-5 rounded-full"
+                      className="w-8 h-8"
+                      style={{
+                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
+                      }}
                     />
-                    <span className="text-sm font-medium text-white/80">{result.source}</span>
+                    
+                    {/* Card Actions */}
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => setSelectedResult(result)}
+                        className="p-2 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 text-white transition-all"
+                      >
+                        <span className="material-icons text-sm">edit</span>
+                      </button>
+                      <button 
+                        onClick={() => handleCardDelete(index)}
+                        className="p-2 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 text-white transition-all"
+                      >
+                        <span className="material-icons text-sm">delete</span>
+                      </button>
+                      <button 
+                        className="p-2 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 text-white transition-all cursor-move"
+                      >
+                        <span className="material-icons text-sm">drag_indicator</span>
+                      </button>
+                    </div>
                   </div>
-                  <button className="text-white/60 hover:text-white/90 transition-colors p-1 rounded-full hover:bg-white/10">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
-                      <path d="M12 3c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 14c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-7c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                    </svg>
-                  </button>
-                </div>
-                <h3 className="text-white font-medium mb-2 line-clamp-2 group-hover:text-white/90">{result.title}</h3>
-                <p className="text-white/70 text-sm line-clamp-3">{result.description}</p>
-                {result.date && (
-                  <p className="text-white/50 text-xs mt-3">
-                    {new Date(result.date).toLocaleDateString()}
+
+                  {/* Description */}
+                  <p 
+                    className="text-white line-clamp-1 text-shadow"
+                    style={{ 
+                      fontSize: `${settings.card.font.size}px`,
+                      fontFamily: settings.card.font.family,
+                      textShadow: '0 2px 4px rgba(0,0,0,0.3)'
+                    }}
+                  >
+                    {result.description}
                   </p>
-                )}
+                </div>
               </div>
-            </div>
-          </a>
-        ))}
+            ))}
+          </div>
+        )}
+
+        {selectedLayout === 'masonry' && (
+          <MasonryLayout
+            results={results}
+            settings={{
+              layout: {
+                columnCount: settings.layout.columnCount,
+                gridGap: settings.layout.gridGap,
+              },
+              card: {
+                border: settings.card.border,
+                borderRadius: 12,
+                font: settings.card.font,
+              },
+            }}
+            onCardClick={setSelectedResult}
+            onCardDelete={handleCardDelete}
+          />
+        )}
+
+        {selectedLayout === 'coverflow' && (
+          <CoverflowLayout
+            results={results}
+            onSelect={setSelectedResult}
+            settings={{
+              cardHeight: settings.card.height,
+              fontSize: {
+                title: settings.card.font.size + 2,
+                description: settings.card.font.size,
+              },
+            }}
+          />
+        )}
       </div>
-    </div>
+
+      {selectedResult && (
+        <CardModal
+          result={selectedResult}
+          onClose={() => setSelectedResult(null)}
+        />
+      )}
+    </>
   );
 } 
