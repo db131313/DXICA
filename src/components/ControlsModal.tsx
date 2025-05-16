@@ -15,10 +15,12 @@ interface ControlsModalProps {
       font: {
         family: string;
         size: number;
+        color: string;
       };
       border: {
         width: number;
         color: string;
+        radius: number;
       };
       height: number;
     };
@@ -166,8 +168,8 @@ export default function ControlsModal({
               <label className="block text-white/80 mb-2 text-sm">Grid Gap (px)</label>
               <input
                 type="range"
-                min="8"
-                max="40"
+                min="0"
+                max="200"
                 value={settings.layout.gridGap}
                 onChange={(e) =>
                   updateSettings('layout', 'gridGap', parseInt(e.target.value))
@@ -175,8 +177,8 @@ export default function ControlsModal({
                 className="w-full"
               />
               <div className="flex justify-between text-white/60 text-xs mt-1">
-                <span>8px</span>
-                <span>40px</span>
+                <span>0px</span>
+                <span>200px</span>
               </div>
             </div>
           </div>
@@ -220,14 +222,30 @@ export default function ControlsModal({
               <label className="block text-white/80 mb-2 text-sm">Font Family</label>
               <select
                 value={settings.card.font.family}
-                onChange={(e) => updateSettings('card', 'font', {
-                  ...settings.card.font,
-                  family: e.target.value
-                })}
+                onChange={(e) => {
+                  const newSettings = {
+                    ...settings,
+                    card: {
+                      ...settings.card,
+                      font: {
+                        ...settings.card.font,
+                        family: e.target.value
+                      }
+                    }
+                  };
+                  onSettingsChange(newSettings);
+                }}
                 className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-white text-sm"
+                style={{ fontFamily: settings.card.font.family }}
               >
                 {fontFamilies.map((font) => (
-                  <option key={font} value={font}>{font}</option>
+                  <option 
+                    key={font} 
+                    value={font}
+                    style={{ fontFamily: font }}
+                  >
+                    {font}
+                  </option>
                 ))}
               </select>
             </div>
@@ -249,6 +267,19 @@ export default function ControlsModal({
                 <span>12px</span>
                 <span>24px</span>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-white/80 mb-2 text-sm">Font Color</label>
+              <input
+                type="color"
+                value={settings.card.font.color}
+                onChange={(e) => updateSettings('card', 'font', {
+                  ...settings.card.font,
+                  color: e.target.value
+                })}
+                className="w-full h-8 rounded-lg cursor-pointer"
+              />
             </div>
 
             <div>
@@ -281,6 +312,25 @@ export default function ControlsModal({
                 })}
                 className="w-full h-8 rounded-lg cursor-pointer"
               />
+            </div>
+
+            <div>
+              <label className="block text-white/80 mb-2 text-sm">Border Radius (px)</label>
+              <input
+                type="range"
+                min="0"
+                max="24"
+                value={settings.card.border.radius}
+                onChange={(e) => updateSettings('card', 'border', {
+                  ...settings.card.border,
+                  radius: parseInt(e.target.value)
+                })}
+                className="w-full"
+              />
+              <div className="flex justify-between text-white/60 text-xs mt-1">
+                <span>0px</span>
+                <span>24px</span>
+              </div>
             </div>
 
             <div>

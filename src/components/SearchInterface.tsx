@@ -23,29 +23,42 @@ export default function SearchInterface({ onSearch }: SearchInterfaceProps) {
     setPlatforms(updatedPlatforms);
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
     const selectedPlatforms = platforms.filter(p => p.isSelected);
-    onSearch(keywords, selectedPlatforms);
+    if (keywords.trim()) {
+      onSearch(keywords, selectedPlatforms);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleGenerate();
+    }
   };
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4">
-      <div className="relative">
+      <form onSubmit={handleGenerate} className="relative">
         {/* Search Input */}
         <div className="relative">
           <input
             type="text"
             value={keywords}
             onChange={(e) => setKeywords(e.target.value)}
+            onKeyDown={handleKeyDown}
             onFocus={() => setIsMenuOpen(true)}
             placeholder="Enter keywords"
             className="w-full px-6 py-4 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-white/30"
           />
           <button
-            onClick={handleGenerate}
+            type="submit"
             className="absolute right-2 top-1/2 -translate-y-1/2 bg-pink-500 text-white px-6 py-2 rounded-full hover:bg-pink-600 transition-colors flex items-center gap-2"
           >
-            <span className="material-icons text-xl">auto_awesome</span>
+            <span className="material-icons">auto_fix_high</span>
             Generate
           </button>
         </div>
@@ -91,7 +104,7 @@ export default function SearchInterface({ onSearch }: SearchInterfaceProps) {
             </div>
           </div>
         )}
-      </div>
+      </form>
     </div>
   );
 } 

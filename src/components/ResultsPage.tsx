@@ -1,67 +1,107 @@
 import { useEffect, useState } from 'react';
-import type { SearchResult } from '../types';
+import type { SearchResult, Settings } from '../types';
 import { GOOGLE_API_KEY, GOOGLE_SEARCH_ENGINE_ID } from '../config';
 import ControlsModal from './ControlsModal';
 import MasonryLayout from './MasonryLayout';
 import CoverflowLayout from './CoverflowLayout';
 import CardModal from './CardModal';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortable';
+import { restrictToWindowEdges } from '@dnd-kit/modifiers';
+import DragOverlay from './DragOverlay';
+import SortableItem from './SortableItem';
 
 interface ResultsPageProps {
   keywords: string;
   selectedPlatforms: Array<{ name: string; username?: string }>;
+  settings: Settings;
+  selectedLayout: 'basic' | 'masonry' | 'coverflow';
 }
 
-interface Settings {
+const defaultSettings: Settings = {
   layout: {
-    columnCount: number;
-    gridGap: number;
-  };
+    columnCount: 3,
+    gridGap: 16,
+  },
   page: {
-    containerPadding: number;
-    backgroundImage?: string;
-  };
+    containerPadding: 24,
+    backgroundImage: undefined,
+  },
   card: {
     font: {
-      family: string;
-      size: number;
-    };
+      family: 'Inter',
+      size: 14,
+      color: '#ffffff',
+    },
     border: {
-      width: number;
-      color: string;
-    };
-    height: number;
-  };
-}
+      width: 1,
+      color: 'rgba(255, 255, 255, 0.1)',
+      radius: 12,
+    },
+    height: 300,
+  },
+};
 
-export default function ResultsPage({ keywords, selectedPlatforms }: ResultsPageProps) {
+export default function ResultsPage({ keywords, selectedPlatforms, settings, selectedLayout }: ResultsPageProps) {
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showControls, setShowControls] = useState(false);
-  const [selectedLayout, setSelectedLayout] = useState<'basic' | 'masonry' | 'coverflow'>('basic');
   const [selectedResult, setSelectedResult] = useState<SearchResult | null>(null);
   
-  const [settings, setSettings] = useState<Settings>({
-    layout: {
-      columnCount: 3,
-      gridGap: 16,
-    },
-    page: {
-      containerPadding: 24,
-      backgroundImage: undefined,
-    },
-    card: {
-      font: {
-        family: 'Inter',
-        size: 14,
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
       },
-      border: {
-        width: 1,
-        color: 'rgba(255, 255, 255, 0.1)',
-      },
-      height: 300,
-    },
-  });
+    })
+  );
+
+  const handleDragStart = (event: any) => {
+    setActiveId(event.active.id);
+  };
+
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (active.id !== over?.id) {
+      setResults((items) => {
+        const oldIndex = items.findIndex((item) => item.link === active.id);
+        const newIndex = items.findIndex((item) => item.link === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
+  };
+
+  // Persist settings and layout changes
+  useEffect(() => {
+    localStorage.setItem('dxica_settings', JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    localStorage.setItem('dxica_layout', selectedLayout);
+  }, [selectedLayout]);
+
+  // Calculate container offset
+  useEffect(() => {
+    const calculateOffset = () => {
+      const container = document.querySelector('.min-h-screen');
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        document.documentElement.style.setProperty('--container-offset', `${rect.left}px`);
+      }
+    };
+
+    calculateOffset();
+    window.addEventListener('resize', calculateOffset);
+    return () => window.removeEventListener('resize', calculateOffset);
+  }, []);
 
   useEffect(() => {
     const fetchResults = async () => {
@@ -124,11 +164,11 @@ export default function ResultsPage({ keywords, selectedPlatforms }: ResultsPage
           .filter(item => item.link && item.link.match(/\.(jpg|jpeg|png|gif|webp)/i)) // Only keep items with valid image URLs
           .map((item: any) => ({
             title: item.title,
-            link: item.link,
+            link: item.image?.contextLink || item.displayLink || item.link,
             description: item.snippet,
             image: item.link,
-            favicon: `https://www.google.com/s2/favicons?domain=${new URL(item.link).hostname}`,
-            source: new URL(item.link).hostname,
+            favicon: `https://www.google.com/s2/favicons?domain=${new URL(item.image?.contextLink || item.displayLink || item.link).hostname}&sz=128`,
+            source: new URL(item.image?.contextLink || item.displayLink || item.link).hostname,
             date: item.pagemap?.metatags?.[0]?.['article:published_time'],
           }))
           .slice(0, 30); // Ensure we return exactly 30 results
@@ -178,157 +218,92 @@ export default function ResultsPage({ keywords, selectedPlatforms }: ResultsPage
   }
 
   return (
-    <>
+    <div 
+      className="min-h-screen w-full relative"
+      style={{
+        backgroundImage: settings.page.backgroundImage ? `url(${settings.page.backgroundImage})` : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+      }}
+    >
+      {/* Results Grid */}
       <div 
-        className="min-h-screen relative"
         style={{
           padding: `${settings.page.containerPadding}px`,
-          backgroundImage: settings.page.backgroundImage ? `url(${settings.page.backgroundImage})` : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed',
+          width: '100%',
+          boxSizing: 'border-box'
         }}
       >
-        {/* Controls Button */}
-        <div className="fixed top-4 right-4 z-50">
-          <div className="relative">
-            <button
-              onClick={() => setShowControls(!showControls)}
-              className="p-3 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-all border border-white/20"
-            >
-              <span className="material-icons">tune</span>
-            </button>
-
-            {showControls && (
-              <div className="absolute top-full right-0 mt-2 w-80">
-                <ControlsModal
-                  settings={settings}
-                  selectedLayout={selectedLayout}
-                  onLayoutChange={setSelectedLayout}
-                  onSettingsChange={setSettings}
-                  onClose={() => setShowControls(false)}
-                />
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+          modifiers={[restrictToWindowEdges]}
+        >
+          <SortableContext items={results.map(r => r.link)} strategy={rectSortingStrategy}>
+            {selectedLayout === 'basic' && (
+              <div 
+                className="w-full"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${settings.layout.columnCount}, 1fr)`,
+                  gap: `${settings.layout.gridGap}px`,
+                  width: '100%',
+                  maxWidth: '100%'
+                }}
+              >
+                {results.map((result, index) => (
+                  <SortableItem 
+                    key={result.link} 
+                    id={result.link}
+                    result={result}
+                    index={index}
+                    settings={settings}
+                    onEdit={() => setSelectedResult(result)}
+                    onDelete={handleCardDelete}
+                  />
+                ))}
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Results Grid */}
-        {selectedLayout === 'basic' && (
-          <div 
-            className="grid gap-6"
-            style={{
-              gridTemplateColumns: `repeat(${settings.layout.columnCount}, minmax(0, 1fr))`,
-              gap: `${settings.layout.gridGap}px`,
-            }}
-          >
-            {results.map((result, index) => (
-              <div
-                key={result.link}
-                className="group relative aspect-[4/3] rounded-xl overflow-hidden"
-              >
-                {/* Background Image */}
-                <img
-                  src={result.image}
-                  alt={result.title}
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-                
-                {/* Overlay Gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+            {selectedLayout === 'masonry' && (
+              <MasonryLayout
+                results={results}
+                settings={settings}
+                onCardClick={setSelectedResult}
+                onCardDelete={handleCardDelete}
+              />
+            )}
 
-                {/* Content */}
-                <div className="absolute inset-0 p-4 flex flex-col">
-                  {/* Favicon and Actions */}
-                  <div className="flex items-center justify-between mb-auto">
-                    <img
-                      src={result.favicon}
-                      alt={result.source}
-                      className="w-8 h-8"
-                      style={{
-                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
-                      }}
-                    />
-                    
-                    {/* Card Actions */}
-                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={() => setSelectedResult(result)}
-                        className="p-2 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 text-white transition-all"
-                      >
-                        <span className="material-icons text-sm">edit</span>
-                      </button>
-                      <button 
-                        onClick={() => handleCardDelete(index)}
-                        className="p-2 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 text-white transition-all"
-                      >
-                        <span className="material-icons text-sm">delete</span>
-                      </button>
-                      <button 
-                        className="p-2 rounded-full bg-black/40 backdrop-blur-sm hover:bg-black/60 text-white transition-all cursor-move"
-                      >
-                        <span className="material-icons text-sm">drag_indicator</span>
-                      </button>
-                    </div>
-                  </div>
+            {selectedLayout === 'coverflow' && (
+              <CoverflowLayout
+                results={results}
+                onSelect={setSelectedResult}
+                onDelete={handleCardDelete}
+                settings={settings}
+              />
+            )}
+          </SortableContext>
 
-                  {/* Description */}
-                  <p 
-                    className="text-white line-clamp-1 text-shadow"
-                    style={{ 
-                      fontSize: `${settings.card.font.size}px`,
-                      fontFamily: settings.card.font.family,
-                      textShadow: '0 2px 4px rgba(0,0,0,0.3)'
-                    }}
-                  >
-                    {result.description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {selectedLayout === 'masonry' && (
-          <MasonryLayout
-            results={results}
-            settings={{
-              layout: {
-                columnCount: settings.layout.columnCount,
-                gridGap: settings.layout.gridGap,
-              },
-              card: {
-                border: settings.card.border,
-                borderRadius: 12,
-                font: settings.card.font,
-              },
-            }}
-            onCardClick={setSelectedResult}
-            onCardDelete={handleCardDelete}
-          />
-        )}
-
-        {selectedLayout === 'coverflow' && (
-          <CoverflowLayout
-            results={results}
-            onSelect={setSelectedResult}
-            settings={{
-              cardHeight: settings.card.height,
-              fontSize: {
-                title: settings.card.font.size + 2,
-                description: settings.card.font.size,
-              },
-            }}
-          />
-        )}
+          {activeId ? (
+            <DragOverlay
+              result={results.find(r => r.link === activeId)!}
+              aspectRatio={selectedLayout === 'basic' ? 'aspect-[4/3]' : 'aspect-[3/4]'}
+            />
+          ) : null}
+        </DndContext>
       </div>
 
       {selectedResult && (
         <CardModal
           result={selectedResult}
           onClose={() => setSelectedResult(null)}
+          settings={settings}
         />
       )}
-    </>
+    </div>
   );
 } 
