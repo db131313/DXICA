@@ -12,7 +12,7 @@ export default {
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-main': 'linear-gradient(90deg, #FF8B64, #95DB9D)',
+        'gradient-main': 'linear-gradient(to bottom, #1a1a1a, #000000)',
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',

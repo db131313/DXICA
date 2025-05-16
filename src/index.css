@@ -4,6 +4,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Test style to verify CSS loading */
+body {
+  background-color: #000000 !important;
+}
+
+h1 {
+  color: red !important;
+  font-size: 48px !important;
+}
+
 /* Ensure fonts are properly applied */
 .font-inter { font-family: 'Inter', sans-serif; }
 .font-roboto { font-family: 'Roboto', sans-serif; }

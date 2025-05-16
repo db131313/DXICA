@@ -1,7 +1,11 @@
 import { useState } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import SearchInterface from './components/SearchInterface';
 import ResultsPage from './components/ResultsPage';
 import ControlsModal from './components/ControlsModal';
+import LoginPage from './components/auth/LoginPage';
+import SignupPage from './components/auth/SignupPage';
+import { NavBar } from './components/NavBar';
 
 interface Settings {
   layout: {
@@ -51,7 +55,7 @@ const defaultSettings: Settings = {
   },
 };
 
-function App() {
+function MainContent() {
   const [searchState, setSearchState] = useState<{
     isSearching: boolean;
     keywords: string;
@@ -81,33 +85,13 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-main">
-      <nav className="fixed top-0 left-0 right-0 bg-white/5 backdrop-blur-sm z-50 w-screen">
-        <div className="w-full px-6 py-4 flex items-center">
-          <button 
-            onClick={handleReset}
-            className="text-2xl font-bold text-white hover:text-white/80 transition-colors"
-          >
-            DXICA
-          </button>
-          <div className="ml-auto flex items-center gap-4">
-            {searchState.isSearching && (
-              <button
-                onClick={() => setShowControls(!showControls)}
-                className="p-3 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-all border border-white/20"
-              >
-                <span className="material-icons">settings</span>
-              </button>
-            )}
-            <button className="px-4 py-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all">
-              Sign Up
-            </button>
-            <button className="px-4 py-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all">
-              Log In
-            </button>
-          </div>
-        </div>
-      </nav>
+    <>
+      <NavBar 
+        onReset={handleReset}
+        showControls={showControls}
+        setShowControls={setShowControls}
+        isSearching={searchState.isSearching}
+      />
 
       <main className="pt-20">
         {!searchState.isSearching ? (
@@ -147,6 +131,18 @@ function App() {
           </>
         )}
       </main>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <div className="min-h-screen bg-gradient-main">
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/" element={<MainContent />} />
+      </Routes>
     </div>
   );
 }

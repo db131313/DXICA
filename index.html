@@ -5,10 +5,58 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <title>Tantile - Artificial Decentralized Spaces</title>
+    <title>DXICA</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #1a1a1a;
+        color: white;
+        font-family: Arial, sans-serif;
+      }
+      #root {
+        min-height: 100vh;
+      }
+      #fallback {
+        display: none;
+        padding: 20px;
+        text-align: center;
+        margin-top: 50px;
+      }
+      .error {
+        color: red;
+        margin: 20px;
+        padding: 20px;
+        border: 1px solid red;
+        border-radius: 4px;
+      }
+    </style>
   </head>
-  <body class="bg-black">
+  <body>
+    <div id="fallback">
+      <h1>DXICA Loading...</h1>
+      <p>If you see this message for more than a few seconds, something might be wrong.</p>
+      <div id="error-display" class="error" style="display: none;"></div>
+    </div>
     <div id="root"></div>
+    <script>
+      // Show fallback after a delay
+      setTimeout(() => {
+        if (!document.getElementById('root').children.length) {
+          document.getElementById('fallback').style.display = 'block';
+        }
+      }, 1000);
+
+      // Catch and display errors
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        const errorDisplay = document.getElementById('error-display');
+        errorDisplay.style.display = 'block';
+        errorDisplay.innerHTML = `<strong>Error:</strong> ${msg}<br><br>
+          <strong>Location:</strong> ${url}:${lineNo}:${columnNo}<br><br>
+          <strong>Stack:</strong> ${error?.stack || 'Not available'}`;
+        return false;
+      };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
